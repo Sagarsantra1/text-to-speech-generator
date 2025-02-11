@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   Select,
   SelectContent,
@@ -6,33 +6,31 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-// Define (or import) the Voice interface
-interface Voice {
-  id: string;
-  name: string;
-  language: string;
-  gender: "Male" | "Female";
-  traits?: string;
-  targetQuality: string;
-  overallGrade: string;
-}
+import { useTTSWorker } from "@/context/TTSWorkerContext"; // Adjust the path as needed
 
 interface VoiceSelectorProps {
   voice: string;
-  voices: Voice[];
   onVoiceChange: (voice: string) => void;
   disabled?: boolean;
 }
 
 const VoiceSelector: React.FC<VoiceSelectorProps> = ({
   voice,
-  voices,
   onVoiceChange,
   disabled,
 }) => {
-  // You can customize this display string as needed.
-  const getVoiceDisplayName = (voice: Voice) => {
+  // Retrieve voices from the context
+  const { voices } = useTTSWorker();
+
+  // Set default voice if not already selected and voices are available.
+  useEffect(() => {
+    if (!voice && voices.length > 0) {
+      onVoiceChange(voices[0].id);
+    }
+  }, [voice, voices, onVoiceChange]);
+
+  // Customize the display string for each voice
+  const getVoiceDisplayName = (voice: { name: string; language: string; gender: string; }) => {
     return `${voice.name} (${voice.language}, ${voice.gender})`;
   };
 
@@ -40,7 +38,7 @@ const VoiceSelector: React.FC<VoiceSelectorProps> = ({
     <div className="w-full md:w-[200px]">
       <Select
         value={voice}
-        onValueChange={(value) => onVoiceChange(value)}
+        onValueChange={onVoiceChange}
         disabled={disabled}
       >
         <SelectTrigger>

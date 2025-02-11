@@ -1,47 +1,17 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import VoiceSelector from "./VoiceSelector";
 import { useToast } from "@/components/ui/use-toast";
+import { useTTS } from "@/hooks/useTTS";
 
-// Define the Voice interface (or import it from a shared types file)
-export interface Voice {
-  id: string;
-  name: string;
-  language: string;
-  gender: "Male" | "Female";
-  traits?: string;
-  targetQuality: string;
-  overallGrade: string;
-}
-
-interface TTSInputFormProps {
-  onGenerate: (text: string, voice: string) => void;
-  isReady: boolean;
-  isGenerating: boolean;
-  chunkProgress: { total: number; completed: number };
-  audioBufferQueueLength: number;
-  voices: Voice[];
-}
-
-const TTSInputForm: React.FC<TTSInputFormProps> = ({
-  onGenerate,
-  isReady,
-  isGenerating,
-  chunkProgress,
-  audioBufferQueueLength,
-  voices,
-}) => {
+const TTSInputForm: React.FC = () => {
   const [text, setText] = useState("");
-  const [voice, setVoice] = useState<string>(""); // now a generic string (voice id)
-  const { toast } = useToast();
+  const [voice, setVoice] = useState<string>("");
 
-  // Set default voice once voices are available.
-  useEffect(() => {
-    if (!voice && voices.length > 0) {
-      setVoice(voices[0].id);
-    }
-  }, [voices, voice]);
+  // Get generation function and status from the context/hook
+  const { generateSpeech, isReady, isGenerating, chunkProgress, audioBufferQueueRef } = useTTS();
+  const { toast } = useToast();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,16 +23,14 @@ const TTSInputForm: React.FC<TTSInputFormProps> = ({
       });
       return;
     }
-    onGenerate(text, voice);
+    generateSpeech(text, voice);
   };
 
   const getButtonText = () => {
-    if (!isReady && audioBufferQueueLength === 0) return "Initializing...";
+    if (!isReady && audioBufferQueueRef.current.length === 0) return "Initializing...";
     if (isGenerating) {
       if (chunkProgress.total > 0) {
-        return `Generating Speech (Chunk ${chunkProgress.completed + 1}/${
-          chunkProgress.total
-        })...`;
+        return `Generating Speech (Chunk ${chunkProgress.completed + 1}/${chunkProgress.total})...`;
       }
       return "Processing text...";
     }
@@ -80,7 +48,6 @@ const TTSInputForm: React.FC<TTSInputFormProps> = ({
       <div className="flex items-center space-x-4 mt-2">
         <VoiceSelector
           voice={voice}
-          voices={voices} // Pass the dynamic voices
           onVoiceChange={setVoice}
           disabled={!isReady || isGenerating}
         />

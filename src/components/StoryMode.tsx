@@ -1,5 +1,5 @@
 import React from "react";
-import { Card, CardContent, } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import TTSInputForm from "./tts/TTSInputForm";
 import TTSStatus from "./tts/TTSStatus";
 import AudioPlayer from "./audioplayer/AudioPlayer";
@@ -7,20 +7,30 @@ import { useTTS } from "@/hooks/useTTS";
 
 const TTSGenerator: React.FC = () => {
   const {
+    isReady,
     isGenerating,
     error,
+    generateSpeech,
     chunkProgress,
     mergedAudioUrl,
     generationStartTime,
     generationEndTime,
     audioBufferQueueRef,
+    voices,
   } = useTTS();
 
   return (
     <div className="">
       <Card className="">
         <CardContent className="space-y-4 p-4">
-          <TTSInputForm/>
+          <TTSInputForm
+            onGenerate={generateSpeech}
+            isReady={isReady}
+            isGenerating={isGenerating}
+            chunkProgress={chunkProgress}
+            audioBufferQueueLength={audioBufferQueueRef.current.length}
+            voices={voices} // Pass dynamic voices here
+          />
 
           <TTSStatus
             error={error}
