@@ -20,12 +20,9 @@ const initializeTTS = async () => {
  * @returns {string[]} An array of text chunks.
  */
 const getTextChunks = (text) => {
-  // Create a SentenceChunker instance with desired options.
   const chunker = new SentenceChunker({ chunkLength: 300 });
   const chunks = [];
-  // Register a callback that collects emitted chunks.
   chunker.onChunk((chunk) => chunks.push(chunk));
-  // Push the complete text and flush the remaining buffer.
   chunker.push(text);
   chunker.flush();
   return chunks;
@@ -38,7 +35,7 @@ self.addEventListener("message", async (e) => {
     try {
       tts = await initializeTTS();
       const voices = tts.voices;
-      self.postMessage({ status: "ready", voices: voices });
+      self.postMessage({ status: "ready", voices });
     } catch (error) {
       self.postMessage({ status: "error", error: error.message });
     }
@@ -46,17 +43,25 @@ self.addEventListener("message", async (e) => {
   }
 
   if (type === "generate") {
-    const { text, voice } = e.data;
+    const { text, voice, requestId } = e.data;
 
     if (typeof text !== "string") {
-      self.postMessage({ status: "error", error: "Text must be a string." });
+      self.postMessage({
+        status: "error",
+        error: "Text must be a string.",
+        requestId,
+      });
       return;
     }
 
     try {
-      // Get text chunks using SentenceChunker.
+      // Split the text into chunks.
       const chunks = getTextChunks(text);
-      self.postMessage({ status: "chunk-start", totalChunks: chunks.length });
+      self.postMessage({
+        status: "chunk-start",
+        totalChunks: chunks.length,
+        requestId,
+      });
 
       for (let i = 0; i < chunks.length; i++) {
         const chunkText = chunks[i];
@@ -69,15 +74,24 @@ self.addEventListener("message", async (e) => {
             audio: blob,
             text: chunkText,
             chunkIndex: i,
+            requestId,
           });
         } catch (error) {
-          self.postMessage({ status: "error", error: error.message });
+          self.postMessage({
+            status: "error",
+            error: error.message,
+            requestId,
+          });
           return;
         }
       }
-      self.postMessage({ status: "complete" });
+      self.postMessage({ status: "complete", requestId });
     } catch (error) {
-      self.postMessage({ status: "error", error: error.message });
+      self.postMessage({
+        status: "error",
+        error: error.message,
+        requestId,
+      });
     }
   }
 });
