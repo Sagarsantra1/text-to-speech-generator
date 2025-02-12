@@ -1,5 +1,4 @@
 import React from "react";
-import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Card, CardContent } from "@/components/ui/card";
 import VolumeControl from "./VolumeControl";
 import OptionsMenu from "./OptionsMenu";
@@ -39,7 +38,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
         {/* Top Controls */}
         <div className="flex justify-between items-center">
           <VolumeControl volume={volume} setVolume={setVolume} />
-          <OptionsMenu />
+          <OptionsMenu mergedAudioUrl={mergedAudioUrl} />
         </div>
 
         {/* Seek Bar */}

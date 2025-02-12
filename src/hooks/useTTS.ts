@@ -28,8 +28,12 @@ export const useTTS = () => {
     completed: 0,
   });
   const [mergedAudioUrl, setMergedAudioUrl] = useState<string | null>(null);
-  const [generationStartTime, setGenerationStartTime] = useState<number | null>(null);
-  const [generationEndTime, setGenerationEndTime] = useState<number | null>(null);
+  const [generationStartTime, setGenerationStartTime] = useState<number | null>(
+    null
+  );
+  const [generationEndTime, setGenerationEndTime] = useState<number | null>(
+    null
+  );
 
   // Get worker and status values from context.
   const { worker, isReady, isGenerating } = useTTSWorker();
@@ -52,22 +56,31 @@ export const useTTS = () => {
     try {
       // Decode the incoming audio blob into an AudioBuffer.
       const arrayBuffer = await data.audio.arrayBuffer();
-      const audioBuffer = await audioContextRef.current!.decodeAudioData(arrayBuffer);
+      const audioBuffer = await audioContextRef.current!.decodeAudioData(
+        arrayBuffer
+      );
       audioBufferQueueRef.current.push(audioBuffer);
       setChunkProgress((prev) => ({
         total: prev.total,
         completed: prev.completed + 1,
       }));
+      mergeAndSetAudioUrl();
     } catch (err) {
       console.error("Error decoding audio chunk:", err);
       setError("Error decoding audio chunk");
     }
   };
-
-  const handleComplete = async () => {
+  const mergeAndSetAudioUrl = async () => {
     try {
+      if (audioBufferQueueRef.current.length === 0) {
+        console.error("No audio buffers found. Aborting merge.");
+        return;
+      }
+
       // Merge all audio buffers.
       const mergedBuffer = concat(...audioBufferQueueRef.current);
+
+      // Encode the merged buffer into WAV format.
       const wavData = await encode({
         sampleRate: mergedBuffer.sampleRate,
         channelData: Array.from(
@@ -75,14 +88,22 @@ export const useTTS = () => {
           (_, i) => mergedBuffer.getChannelData(i)
         ),
       });
+
+      // Create a Blob from the WAV data and generate a URL.
       const wavBlob = new Blob([wavData], { type: "audio/wav" });
       const url = URL.createObjectURL(wavBlob);
+
+      // Update state with the generated URL and record the generation end time.
       setMergedAudioUrl(url);
       setGenerationEndTime(Date.now());
     } catch (err) {
       console.error("Error merging audio:", err);
       setError("Error merging audio");
     }
+  };
+
+  const handleComplete = async () => {
+    setGenerationEndTime(Date.now());
   };
 
   const handleWorkerError = (err: ErrorEvent) => {
@@ -155,8 +176,8 @@ export const useTTS = () => {
   );
 
   return {
-    isReady,       // from context
-    isGenerating,  // from context
+    isReady, // from context
+    isGenerating, // from context
     error,
     chunkProgress,
     generationStartTime,
