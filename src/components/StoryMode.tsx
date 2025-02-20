@@ -1,11 +1,11 @@
-// StoryMode.tsx
-import React, { useState, useEffect, useMemo } from "react";
+import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import StoryTTSInputForm from "../components/StoryTTS/StoryTTSInputForm";
+import StoryTTSInputForm from "@/components/StoryTTS/StoryTTSInputForm";
 import TTSStatus from "./tts/TTSStatus";
 import AudioPlayer from "./audioplayer/AudioPlayer";
-import { useStoryTTS, DialogEntry } from "@/hooks/useStoryTTS";
+import { useStoryTTS } from "@/hooks/useStoryTTS";
 import { useTTSWorker } from "@/context/TTSWorkerContext";
+import useDialogueManager from "@/hooks/useDialogueManager";
 
 const StoryMode: React.FC = () => {
   const { voices, isGenerating } = useTTSWorker();
@@ -19,70 +19,14 @@ const StoryMode: React.FC = () => {
     audioBufferQueueRef,
   } = useStoryTTS();
 
-  // Local state for the JSON input and parsed dialogues.
-  const [inputText, setInputText] = useState<string>("");
-  const [dialogues, setDialogues] = useState<DialogEntry[] | null>(null);
-  const [parseError, setParseError] = useState<string | null>(null);
-  // Mapping from character name to selected voice id.
-  const [voiceMapping, setVoiceMapping] = useState<Record<string, string>>({});
+  // Use the custom dialogue manager hook.
+  const dialogueManager = useDialogueManager(voices);
 
-  // Memoize unique characters so that the array only changes when dialogues change.
-  const uniqueCharacters = useMemo(() => {
-    return dialogues ? Array.from(new Set(dialogues.map((d) => d.character))) : [];
-  }, [dialogues]);
-
-  // Process the JSON text from the input.
-  const processText = () => {
-    try {
-      const parsed = JSON.parse(inputText);
-      if (!Array.isArray(parsed)) {
-        throw new Error("Input must be an array of dialogue objects.");
-      }
-      // Validate each dialogue entry.
-      for (const entry of parsed) {
-        if (
-          typeof entry !== "object" ||
-          typeof entry.character !== "string" ||
-          typeof entry.dialog !== "string"
-        ) {
-          throw new Error(
-            "Each dialogue must be an object with 'character' and 'dialog' string keys."
-          );
-        }
-      }
-      setDialogues(parsed);
-      setParseError(null);
-    } catch (err: any) {
-      setParseError(err.message || "Error parsing JSON input.");
-      setDialogues(null);
-    }
-  };
-
-  // When dialogues and voices are available, set default voice mapping for any new character.
-  useEffect(() => {
-    if (voices.length > 0 && dialogues) {
-      setVoiceMapping((prevMapping) => {
-        const newMapping = { ...prevMapping };
-        uniqueCharacters.forEach((character) => {
-          if (!newMapping[character]) {
-            newMapping[character] = voices[0].id; // default to first available voice
-          }
-        });
-        return newMapping;
-      });
-    }
-  }, [voices, dialogues, uniqueCharacters]);
-
-  // Update voice mapping when the user selects a different voice.
-  const handleVoiceChange = (character: string, voiceId: string) => {
-    setVoiceMapping((prev) => ({ ...prev, [character]: voiceId }));
-  };
-
-  // Handle the generation of the story TTS.
+  // Handle generating the story from dialogues.
   const handleGenerate = async () => {
-    if (!dialogues) return;
+    if (!dialogueManager.dialogues) return;
     try {
-      await generateStory(dialogues, voiceMapping);
+      await generateStory(dialogueManager.dialogues, dialogueManager.voiceMapping);
     } catch (err) {
       console.error("Generation error:", err);
     }
@@ -93,14 +37,7 @@ const StoryMode: React.FC = () => {
       <Card>
         <CardContent className="space-y-4 p-4">
           <StoryTTSInputForm
-            inputText={inputText}
-            setInputText={setInputText}
-            parseError={parseError}
-            processText={processText}
-            dialogues={dialogues}
-            uniqueCharacters={uniqueCharacters}
-            voiceMapping={voiceMapping}
-            handleVoiceChange={handleVoiceChange}
+            dialogueManager={dialogueManager}
             handleGenerate={handleGenerate}
             isGenerating={isGenerating}
             voices={voices}
@@ -114,8 +51,7 @@ const StoryMode: React.FC = () => {
             generationEndTime={generationEndTime}
           />
 
-          {(mergedAudioUrl ||
-            (audioBufferQueueRef.current && audioBufferQueueRef.current.length > 0)) && (
+          {(mergedAudioUrl || audioBufferQueueRef.current.length > 0) && (
             <AudioPlayer
               mergedAudioUrl={mergedAudioUrl}
               audioBufferQueueRef={audioBufferQueueRef}

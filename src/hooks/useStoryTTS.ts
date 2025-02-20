@@ -1,10 +1,9 @@
-// useStoryTTS.ts
 import { useState, useEffect, useCallback, useRef } from "react";
 import { concat } from "audio-buffer-utils";
 import { encode } from "wav-encoder";
 import { useTTSWorker } from "@/context/TTSWorkerContext";
 
-// Define the type for a dialogue entry.
+/** A dialogue entry for TTS generation. */
 export interface DialogEntry {
   character: string;
   dialog: string;
@@ -17,11 +16,10 @@ interface ChunkProgress {
 
 /**
  * Custom hook for generating TTS for a multi–dialogue “story.”
- * It uses a worker (from context) to generate and decode audio, merging
- * the results into a single audio blob URL.
+ * It uses a worker (from context) to generate and decode audio,
+ * merging the results into a single audio blob URL.
  */
 export const useStoryTTS = () => {
-  // Local state for error, progress, and audio URL.
   const [error, setError] = useState("");
   const [chunkProgress, setChunkProgress] = useState<ChunkProgress>({
     total: 0,
@@ -31,25 +29,19 @@ export const useStoryTTS = () => {
   const [generationStartTime, setGenerationStartTime] = useState<number | null>(null);
   const [generationEndTime, setGenerationEndTime] = useState<number | null>(null);
 
-  // Get the worker and status values from context.
   const { worker, isReady, isGenerating } = useTTSWorker();
 
-  // References for AudioContext and to store decoded AudioBuffers.
+  // References for AudioContext and storing decoded AudioBuffers.
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioBufferQueueRef = useRef<AudioBuffer[]>([]);
 
   // --- Worker Message Handlers ---
 
-  // Called when a new generation begins.
   const handleChunkStart = (data: any) => {
     console.log("handleChunkStart:", data);
-    setChunkProgress({ total: data.totalChunks, completed: 0 });
-    // (For a new dialogue, buffers will be cleared in generateSpeech if not appending.)
-    setGenerationStartTime(Date.now());
-    setGenerationEndTime(null);
+    // (No longer updating progress or time here.)
   };
 
-  // Called when a chunk is generated.
   const handleChunkComplete = async (data: any) => {
     console.log("handleChunkComplete:", data);
     try {
@@ -58,10 +50,6 @@ export const useStoryTTS = () => {
       if (!audioContextRef.current) throw new Error("AudioContext not initialized");
       const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
       audioBufferQueueRef.current.push(audioBuffer);
-      setChunkProgress((prev) => ({
-        total: prev.total,
-        completed: prev.completed + 1,
-      }));
       // Merge the available audio buffers into one URL.
       mergeAndSetAudioUrl();
     } catch (err) {
@@ -70,7 +58,7 @@ export const useStoryTTS = () => {
     }
   };
 
-  // Merges all stored AudioBuffers into a single WAV file and updates state.
+  // Merge all stored AudioBuffers into a single WAV file and update state.
   const mergeAndSetAudioUrl = async () => {
     try {
       if (audioBufferQueueRef.current.length === 0) {
@@ -91,29 +79,24 @@ export const useStoryTTS = () => {
       const wavBlob = new Blob([wavData], { type: "audio/wav" });
       const url = URL.createObjectURL(wavBlob);
       setMergedAudioUrl(url);
-      setGenerationEndTime(Date.now());
     } catch (err) {
       console.error("Error merging audio:", err);
       setError("Error merging audio");
     }
   };
 
-  // Called when the worker signals the overall generation is complete.
   const handleComplete = async (data: any) => {
     console.log("handleComplete:", data);
-    setGenerationEndTime(Date.now());
+    // (Set generationEndTime after all dialogues are processed.)
   };
 
-  // Called when the worker encounters an error.
   const handleWorkerError = (err: ErrorEvent) => {
     console.error("Worker encountered an error:", err);
     setError("Worker encountered an error");
   };
 
-  // Global worker message handler.
   const handleMessage = async (event: MessageEvent) => {
     const data = event.data;
-    // (This global handler will log all messages coming from the worker.)
     console.log("Global worker message:", data);
     switch (data.status) {
       case "chunk-start":
@@ -135,11 +118,11 @@ export const useStoryTTS = () => {
   };
 
   // --- Setup & Cleanup ---
+
   useEffect(() => {
     if (!worker) return;
 
     try {
-      // Create an AudioContext for decoding audio data.
       audioContextRef.current = new AudioContext();
     } catch (err) {
       console.error("AudioContext initialization failed:", err);
@@ -154,11 +137,17 @@ export const useStoryTTS = () => {
       worker.removeEventListener("message", handleMessage);
       worker.removeEventListener("error", handleWorkerError);
       audioContextRef.current?.close();
+    };
+  }, [worker]);
+
+  // Revoke the merged audio URL when the component unmounts.
+  useEffect(() => {
+    return () => {
       if (mergedAudioUrl) {
         URL.revokeObjectURL(mergedAudioUrl);
       }
     };
-  }, [worker, mergedAudioUrl]);
+  }, [mergedAudioUrl]);
 
   // --- Generation Functions ---
 
@@ -174,7 +163,6 @@ export const useStoryTTS = () => {
           reject("Worker not initialized");
           return;
         }
-        // If this is not an appended dialogue, clear previous buffers and URL.
         if (!append) {
           audioBufferQueueRef.current = [];
           if (mergedAudioUrl) {
@@ -182,13 +170,13 @@ export const useStoryTTS = () => {
             setMergedAudioUrl(null);
           }
         }
-        // Generate a unique request ID so we can track responses.
+        // Generate a unique request ID.
         const requestId = Date.now().toString() + Math.random().toString();
         console.log("Posting generate message:", { requestId, text, voice });
-        // Attach a one–time listener that only resolves messages matching this request.
+        // Listen once for a matching response.
         const handleCompleteOnce = (event: MessageEvent) => {
           const data = event.data;
-          if (data.requestId !== requestId) return; // Ignore messages from other requests.
+          if (data.requestId !== requestId) return;
           if (data.status === "complete") {
             console.log("Received complete for request:", requestId);
             worker.removeEventListener("message", handleCompleteOnce);
@@ -200,7 +188,6 @@ export const useStoryTTS = () => {
           }
         };
         worker.addEventListener("message", handleCompleteOnce);
-        // Post the generation request with the unique requestId.
         worker.postMessage({ type: "generate", text, voice, requestId });
       });
     },
@@ -219,28 +206,31 @@ export const useStoryTTS = () => {
       }
       setGenerationStartTime(Date.now());
       setGenerationEndTime(null);
-      // Process each dialogue sequentially.
+      setChunkProgress({ total: dialogues.length, completed: 0 });
+      
       for (let i = 0; i < dialogues.length; i++) {
         const dialogue = dialogues[i];
         const voiceId = voiceMapping[dialogue.character];
-        if (!voiceId) continue; // Skip if no voice was selected.
+        if (!voiceId) continue;
         console.log("Generating dialogue:", dialogue, "with voice:", voiceId);
         try {
           // For the first dialogue, do not append; for subsequent ones, append.
           await generateSpeech(dialogue.dialog, voiceId, i > 0);
+          setChunkProgress({ total: dialogues.length, completed: i + 1 });
         } catch (err) {
           console.error("Error generating speech for dialogue:", dialogue, err);
           setError(`Error generating speech for ${dialogue.character}`);
           break;
         }
       }
+      setGenerationEndTime(Date.now());
     },
     [worker, generateSpeech]
   );
 
   return {
-    isReady, // from context
-    isGenerating, // from context
+    isReady,
+    isGenerating,
     error,
     chunkProgress,
     generationStartTime,

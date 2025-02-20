@@ -53,7 +53,8 @@ export const TTSWorkerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             setVoices(voicesArray);
           }
           break;
-        case "chunk-start":
+        case "stream-start":
+          // New worker status indicating generation has started.
           setIsGenerating(true);
           break;
         case "complete":

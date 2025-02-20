@@ -3,7 +3,6 @@ import { concat } from "audio-buffer-utils";
 import { encode } from "wav-encoder";
 import { useTTSWorker } from "@/context/TTSWorkerContext";
 
-// Define the different statuses our generation process can have.
 export type GenerationStatus =
   | "init"
   | "ready"
@@ -23,17 +22,10 @@ interface ChunkProgress {
 export const useTTS = () => {
   // Local state for error, chunk progress, and merged audio.
   const [error, setError] = useState("");
-  const [chunkProgress, setChunkProgress] = useState<ChunkProgress>({
-    total: 0,
-    completed: 0,
-  });
+  const [chunkProgress, setChunkProgress] = useState<ChunkProgress>({ total: 0, completed: 0 });
   const [mergedAudioUrl, setMergedAudioUrl] = useState<string | null>(null);
-  const [generationStartTime, setGenerationStartTime] = useState<number | null>(
-    null
-  );
-  const [generationEndTime, setGenerationEndTime] = useState<number | null>(
-    null
-  );
+  const [generationStartTime, setGenerationStartTime] = useState<number | null>(null);
+  const [generationEndTime, setGenerationEndTime] = useState<number | null>(null);
 
   // Get worker and status values from context.
   const { worker, isReady, isGenerating } = useTTSWorker();
@@ -42,23 +34,22 @@ export const useTTS = () => {
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioBufferQueueRef = useRef<AudioBuffer[]>([]);
 
-  // Worker message handlers for generation (excluding "ready", which is handled in context).
-
+  // Worker message handlers for generation.
   const handleChunkStart = (data: any) => {
-    setChunkProgress({ total: data.totalChunks, completed: 0 });
+    // Use data.totalChunks if provided; default to 0 if not.
+    setChunkProgress({ total: data.totalChunks || 0, completed: 0 });
     // Clear any previous buffers.
     audioBufferQueueRef.current = [];
     setGenerationStartTime(Date.now());
     setGenerationEndTime(null);
+    setMergedAudioUrl(null);
   };
 
   const handleChunkComplete = async (data: any) => {
     try {
       // Decode the incoming audio blob into an AudioBuffer.
       const arrayBuffer = await data.audio.arrayBuffer();
-      const audioBuffer = await audioContextRef.current!.decodeAudioData(
-        arrayBuffer
-      );
+      const audioBuffer = await audioContextRef.current!.decodeAudioData(arrayBuffer);
       audioBufferQueueRef.current.push(audioBuffer);
       setChunkProgress((prev) => ({
         total: prev.total,
@@ -70,30 +61,25 @@ export const useTTS = () => {
       setError("Error decoding audio chunk");
     }
   };
+
   const mergeAndSetAudioUrl = async () => {
     try {
       if (audioBufferQueueRef.current.length === 0) {
         console.error("No audio buffers found. Aborting merge.");
         return;
       }
-
       // Merge all audio buffers.
       const mergedBuffer = concat(...audioBufferQueueRef.current);
-
       // Encode the merged buffer into WAV format.
       const wavData = await encode({
         sampleRate: mergedBuffer.sampleRate,
-        channelData: Array.from(
-          { length: mergedBuffer.numberOfChannels },
-          (_, i) => mergedBuffer.getChannelData(i)
+        channelData: Array.from({ length: mergedBuffer.numberOfChannels }, (_, i) =>
+          mergedBuffer.getChannelData(i)
         ),
       });
-
       // Create a Blob from the WAV data and generate a URL.
       const wavBlob = new Blob([wavData], { type: "audio/wav" });
       const url = URL.createObjectURL(wavBlob);
-
-      // Update state with the generated URL and record the generation end time.
       setMergedAudioUrl(url);
       setGenerationEndTime(Date.now());
     } catch (err) {
@@ -114,7 +100,8 @@ export const useTTS = () => {
   const handleMessage = async (event: MessageEvent) => {
     const data = event.data;
     switch (data.status) {
-      case "chunk-start":
+      case "stream-start":
+        // Treat the new "stream-start" as the start of generation.
         handleChunkStart(data);
         break;
       case "chunk-complete":
@@ -170,7 +157,10 @@ export const useTTS = () => {
         URL.revokeObjectURL(mergedAudioUrl);
         setMergedAudioUrl(null);
       }
-      worker.postMessage({ type: "generate", text, voice });
+      // Generate a requestId for tracking.
+      const requestId = Date.now();
+      console.log(voice)
+      worker.postMessage({ type: "generate", text, voice, requestId });
     },
     [worker, mergedAudioUrl]
   );

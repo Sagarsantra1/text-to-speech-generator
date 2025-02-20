@@ -1,31 +1,33 @@
-import { SentenceChunker } from "./SentenceChunker.js";
-import { KokoroTTS } from "kokoro-js";
 
-let tts = null;
+import { KokoroTTS, TextSplitterStream } from "kokoro-js";
 
 /**
- * Initializes the TTS engine.
+ * Checks if WebGPU is available.
+ * @returns {Promise<boolean>} A promise that resolves to true if WebGPU is available.
+ */
+async function detectWebGPU() {
+  try {
+    const adapter = await navigator.gpu.requestAdapter();
+    return !!adapter;
+  } catch {
+    return false;
+  }
+}
+
+let tts = null;
+const model_id = "onnx-community/Kokoro-82M-v1.0-ONNX";
+
+/**
+ * Initializes the TTS engine with either WebGPU (if available) or WASM.
  * @returns {Promise<any>} A promise that resolves with the TTS instance.
  */
 const initializeTTS = async () => {
-  return await KokoroTTS.from_pretrained("onnx-community/Kokoro-82M-ONNX", {
-    dtype: "q8",
-    device: "wasm",
+  const hasWebGPU = await detectWebGPU();
+  const device = hasWebGPU ? "webgpu" : "wasm";
+  return await KokoroTTS.from_pretrained(model_id, {
+    dtype: "fp32", // Using fp32 for higher precision.
+    device,
   });
-};
-
-/**
- * Uses SentenceChunker to split text into chunks.
- * @param {string} text - The text to split.
- * @returns {string[]} An array of text chunks.
- */
-const getTextChunks = (text) => {
-  const chunker = new SentenceChunker({ chunkLength: 300 });
-  const chunks = [];
-  chunker.onChunk((chunk) => chunks.push(chunk));
-  chunker.push(text);
-  chunker.flush();
-  return chunks;
 };
 
 self.addEventListener("message", async (e) => {
@@ -34,8 +36,7 @@ self.addEventListener("message", async (e) => {
   if (type === "init") {
     try {
       tts = await initializeTTS();
-      const voices = tts.voices;
-      self.postMessage({ status: "ready", voices });
+      self.postMessage({ status: "ready", voices: tts.voices });
     } catch (error) {
       self.postMessage({ status: "error", error: error.message });
     }
@@ -55,36 +56,44 @@ self.addEventListener("message", async (e) => {
     }
 
     try {
-      // Split the text into chunks.
-      const chunks = getTextChunks(text);
-      self.postMessage({
-        status: "chunk-start",
-        totalChunks: chunks.length,
-        requestId,
-      });
+      // Create a new TextSplitterStream for streaming text input.
+      const splitter = new TextSplitterStream();
+      // Create a stream from the TTS engine.
+      const stream = tts.stream(splitter,{ voice });
 
-      for (let i = 0; i < chunks.length; i++) {
-        const chunkText = chunks[i];
-        try {
-          const audio = await tts.generate(chunkText, { voice });
-          // Convert the generated audio into a Blob.
-          const blob = audio.toBlob();
-          self.postMessage({
-            status: "chunk-complete",
-            audio: blob,
-            text: chunkText,
-            chunkIndex: i,
-            requestId,
-          });
-        } catch (error) {
-          self.postMessage({
-            status: "error",
-            error: error.message,
-            requestId,
-          });
-          return;
-        }
+      // Instead of calling tts.setVoice (which does not exist),
+      // pass the voice option to each generation call.
+      // This allows the engine to use the specified voice.
+      // Example: tts.generate(chunkText, { voice })
+
+      // Inform the client that streaming is starting.
+      self.postMessage({ status: "stream-start", requestId });
+
+      // Split the text into tokens (words) and push them into the stream.
+      const tokens = text.match(/\s*\S+/g) || [text];
+      for (const token of tokens) {
+        splitter.push(token);
+        // Mimic streaming input with a short delay.
+        await new Promise((resolve) => setTimeout(resolve, 10));
       }
+      // Signal that no more text will be added.
+      splitter.close();
+
+      let chunkIndex = 0;
+      for await (const { text: chunkText, phonemes, audio } of stream) {
+        // Pass the voice option if needed when generating audio.
+        // (In this design, voice is assumed to be handled during generation.)
+        const blob = audio.toBlob ? audio.toBlob() : audio;
+        self.postMessage({
+          status: "chunk-complete",
+          audio: blob,
+          text: chunkText,
+          chunkIndex,
+          requestId,
+        });
+        chunkIndex++;
+      }
+
       self.postMessage({ status: "complete", requestId });
     } catch (error) {
       self.postMessage({
