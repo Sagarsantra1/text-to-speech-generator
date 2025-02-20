@@ -33,7 +33,7 @@ const StoryMode: React.FC = () => {
   };
 
   return (
-    <div className="p-4 max-w-3xl mx-auto">
+    <div >
       <Card>
         <CardContent className="space-y-4 p-4">
           <StoryTTSInputForm

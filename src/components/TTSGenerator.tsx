@@ -17,8 +17,8 @@ const TTSGenerator: React.FC = () => {
   } = useTTS();
 
   return (
-    <div className="">
-      <Card className="">
+    <div >
+      <Card >
         <CardContent className="space-y-4 p-4">
           <TTSInputForm/>
 
