@@ -88,7 +88,7 @@ const SettingsPopup = () => {
 
   return (
     <Dialog open={open} onOpenChange={setOpen} >
-      <DialogTrigger asChild  className="fixed top-5 right-5">
+      <DialogTrigger asChild>
         <Button variant="ghost" size="icon" className="p-3 rounded-full flec justify-center items-center">
         <Settings className=" h-4 w-4 cursor-pointer" />
         </Button>
