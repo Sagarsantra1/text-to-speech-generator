@@ -25,22 +25,66 @@ const deviceOptions = [
   { value: "wasm", label: "WASM" },
 ];
 
+// Define theme options for the dropdown.
+const themeOptions = [
+  { value: "system", label: "System" },
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+];
+
+
 const SettingsPopup = () => {
   const { device, setDevice } = useTTSWorker();
   const [selectedDevice, setSelectedDevice] = useState(device);
   const [open, setOpen] = useState(false);
+  const [selectedTheme, setSelectedTheme] = useState("system"); // Default to system theme
 
-  // When the dialog closes, reset the temporary selection.
+  // Load theme from localStorage or default to system
+  useEffect(() => {
+    const storedTheme = localStorage.getItem('theme') || 'system';
+    setSelectedTheme(storedTheme);
+    applyTheme(storedTheme);
+  }, []);
+
+  // Apply theme function
+  const applyTheme = (theme: string) => {
+    if (theme === 'system') {
+      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.classList.add('dark');
+        document.documentElement.classList.remove('light');
+        document.documentElement.dataset.theme = 'dark';
+
+      } else {
+        document.documentElement.classList.remove('dark');
+        document.documentElement.classList.add('light');
+        document.documentElement.dataset.theme = 'light';
+      }
+    } else if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+      document.documentElement.classList.remove('light');
+      document.documentElement.dataset.theme = 'dark';
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.documentElement.classList.add('light');
+      document.documentElement.dataset.theme = 'light';
+    }
+  };
+
+
+  // When the dialog closes, reset the temporary selections.
   useEffect(() => {
     if (!open) {
       setSelectedDevice(device);
+      setSelectedTheme(localStorage.getItem('theme') || 'system'); // Reset theme on close
     }
   }, [open, device]);
 
   const handleSave = useCallback(() => {
     setDevice(selectedDevice);
+    localStorage.setItem('theme', selectedTheme);
+    applyTheme(selectedTheme);
     setOpen(false);
-  }, [selectedDevice, setDevice]);
+  }, [selectedDevice, setDevice, selectedTheme]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen} >
@@ -51,18 +95,34 @@ const SettingsPopup = () => {
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Device Settings</DialogTitle>
+          <DialogTitle>Settings</DialogTitle>
           <DialogDescription>
-            Choose your preferred device for text-to-speech processing.
+            Customize your experience.
           </DialogDescription>
         </DialogHeader>
-        <div className="py-4">
+        <div className="py-2">
+          <h4 className="text-sm font-medium leading-none peer-disabled:opacity-70 mb-2">Device</h4>
           <Select value={selectedDevice} onValueChange={setSelectedDevice}>
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Select a device" />
             </SelectTrigger>
             <SelectContent>
               {deviceOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="py-2">
+          <h4 className="text-sm font-medium leading-none peer-disabled:opacity-70 mb-2">Theme</h4>
+          <Select value={selectedTheme} onValueChange={setSelectedTheme}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="System" />
+            </SelectTrigger>
+            <SelectContent>
+              {themeOptions.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
                 </SelectItem>

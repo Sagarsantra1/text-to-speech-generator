@@ -4,4 +4,3 @@ export const formatTime = (seconds: number): string => {
     const paddedSeconds = s < 10 ? `0${s}` : s;
     return `${m}:${paddedSeconds}`;
   };
-  
