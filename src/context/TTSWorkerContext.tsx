@@ -1,4 +1,12 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useMemo,
+  useCallback,
+} from "react";
+import { toast } from "sonner";
 
 // Define your Voice interface (adjust as needed)
 export interface Voice {
@@ -11,12 +19,14 @@ export interface Voice {
   overallGrade: string;
 }
 
-// Define the context value shape, including worker status.
+// Extend the context to include device state.
 interface TTSContextValue {
   worker: Worker | null;
   voices: Voice[];
   isReady: boolean;
   isGenerating: boolean;
+  device: string;
+  setDevice: (device: string) => void;
 }
 
 const TTSContext = createContext<TTSContextValue>({
@@ -24,60 +34,92 @@ const TTSContext = createContext<TTSContextValue>({
   voices: [],
   isReady: false,
   isGenerating: false,
+  device: "wasm",
+  setDevice: () => {},
 });
 
-export const TTSWorkerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const TTSWorkerProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [worker, setWorker] = useState<Worker | null>(null);
   const [voices, setVoices] = useState<Voice[]>([]);
   const [isReady, setIsReady] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [device, setDevice] = useState("wasm");
 
+  // Memoized message handler to avoid re-creation on every render.
+  const handleMessage = useCallback((event: MessageEvent) => {
+    const data = event.data;
+    switch (data.status) {
+      case "ready":
+        setIsReady(true);
+        if (data.voices) {
+          const voicesArray = Object.entries(data.voices).map(
+            ([id, voiceData]) => ({
+              id,
+              ...(voiceData as Omit<Voice, "id">),
+            })
+          );
+          setVoices(voicesArray);
+        }
+        break;
+      case "stream-start":
+        setIsGenerating(true);
+        break;
+      case "complete":
+      case "error":
+        setIsGenerating(false);
+        break;
+      default:
+        break;
+    }
+  }, []);
+
+  // Initialize the worker on mount.
   useEffect(() => {
-    // Create the worker only once when the provider mounts.
-    const newWorker = new Worker(new URL("/worker.js", import.meta.url), { type: "module" });
+    const newWorker = new Worker(
+      new URL("/worker.js", import.meta.url),
+      { type: "module" }
+    );
     setWorker(newWorker);
-
-    const handleMessage = (event: MessageEvent) => {
-      const data = event.data;
-      switch (data.status) {
-        case "ready":
-          setIsReady(true);
-          // Convert the voices object into an array of Voice objects.
-          if (data.voices) {
-            const voicesArray: Voice[] = Object.entries(data.voices).map(
-              ([id, voiceData]) => ({
-                id,
-                ...(voiceData as Omit<Voice, "id">),
-              })
-            );
-            setVoices(voicesArray);
-          }
-          break;
-        case "stream-start":
-          // New worker status indicating generation has started.
-          setIsGenerating(true);
-          break;
-        case "complete":
-        case "error":
-          setIsGenerating(false);
-          break;
-        default:
-          break;
-      }
-    };
-
     newWorker.addEventListener("message", handleMessage);
-    // Initialize the worker.
-    newWorker.postMessage({ type: "init" });
+
+    // Load device setting from localStorage or default to "wasm"
+    const savedDevice = localStorage.getItem("device") || "wasm";
+    setDevice(savedDevice);
+    newWorker.postMessage({ type: "init", device: savedDevice });
+    toast(`Device set to: ${savedDevice}`);
 
     return () => {
       newWorker.removeEventListener("message", handleMessage);
       newWorker.terminate();
     };
-  }, []);
+  }, [handleMessage]);
+
+  // Update localStorage and notify the worker when the device changes.
+  useEffect(() => {
+    if (worker) {
+      localStorage.setItem("device", device);
+      worker.postMessage({ type: "reinit", device });
+      toast(`Device changed to: ${device}`);
+    }
+  }, [device, worker]);
+
+  // Memoize the context value to avoid unnecessary re-renders.
+  const contextValue = useMemo(
+    () => ({
+      worker,
+      voices,
+      isReady,
+      isGenerating,
+      device,
+      setDevice,
+    }),
+    [worker, voices, isReady, isGenerating, device]
+  );
 
   return (
-    <TTSContext.Provider value={{ worker, voices, isReady, isGenerating }}>
+    <TTSContext.Provider value={contextValue}>
       {children}
     </TTSContext.Provider>
   );

@@ -7,7 +7,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useTTSWorker } from "@/context/TTSWorkerContext";
-import { Filter, Mars, Venus } from "lucide-react";
+import { Mars, Venus } from "lucide-react";
 
 interface Voice {
   id: string;
@@ -68,7 +68,7 @@ const VoiceSelector: React.FC<VoiceSelectorProps> = ({
 
   return (
     <div className="w-full md:w-[200px]">
-      <Select value={voice} onValueChange={onVoiceChange} disabled={disabled} >
+      <Select value={voice} onValueChange={onVoiceChange} disabled={disabled}>
         <SelectTrigger>
           <SelectValue placeholder="Select a voice" />
         </SelectTrigger>

@@ -1,5 +1,6 @@
 import TTSGenerator from "@/components/TTSGenerator";
 import StoryMode from "@/components/StoryMode";
+import SettingsPopup from "@/components/SettingsPopup";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const Index = () => {
@@ -21,6 +22,7 @@ const Index = () => {
           <StoryMode />
         </TabsContent>
       </Tabs>
+      <SettingsPopup />
     </div>
   );
 };
