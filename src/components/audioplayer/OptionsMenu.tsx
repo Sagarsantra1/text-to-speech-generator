@@ -13,7 +13,7 @@ const OptionsMenu: React.FC<OptionsMenuProps> = ({ mergedAudioUrl }) => {
     const link = document.createElement("a");
     link.href = mergedAudioUrl;
     // You can change the filename and extension as needed.
-    link.download = "downloaded_audio.mp3";
+    link.download = "downloaded_audio.wav";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
