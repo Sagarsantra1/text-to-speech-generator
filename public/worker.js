@@ -56,7 +56,7 @@ self.addEventListener("message", async (e) => {
       splitter.close();
 
       let chunkIndex = 0;
-      for await (const { text: , phonemes, audio } of stream) {
+      for await (const { text: chunkText, phonemes, audio } of stream) {
         const blob = audio.toBlob ? audio.toBlob() : audio;
         self.postMessage({
           status: "chunk-complete",
