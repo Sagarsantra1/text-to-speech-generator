@@ -22,10 +22,17 @@ interface ChunkProgress {
 export const useTTS = () => {
   // Local state for error, chunk progress, and merged audio.
   const [error, setError] = useState("");
-  const [chunkProgress, setChunkProgress] = useState<ChunkProgress>({ total: 0, completed: 0 });
+  const [chunkProgress, setChunkProgress] = useState<ChunkProgress>({
+    total: 0,
+    completed: 0,
+  });
   const [mergedAudioUrl, setMergedAudioUrl] = useState<string | null>(null);
-  const [generationStartTime, setGenerationStartTime] = useState<number | null>(null);
-  const [generationEndTime, setGenerationEndTime] = useState<number | null>(null);
+  const [generationStartTime, setGenerationStartTime] = useState<number | null>(
+    null
+  );
+  const [generationEndTime, setGenerationEndTime] = useState<number | null>(
+    null
+  );
 
   // Get worker and status values from context.
   const { worker, isReady, isGenerating } = useTTSWorker();
@@ -49,7 +56,9 @@ export const useTTS = () => {
     try {
       // Decode the incoming audio blob into an AudioBuffer.
       const arrayBuffer = await data.audio.arrayBuffer();
-      const audioBuffer = await audioContextRef.current!.decodeAudioData(arrayBuffer);
+      const audioBuffer = await audioContextRef.current!.decodeAudioData(
+        arrayBuffer
+      );
       audioBufferQueueRef.current.push(audioBuffer);
       setChunkProgress((prev) => ({
         total: prev.total,
@@ -73,8 +82,9 @@ export const useTTS = () => {
       // Encode the merged buffer into WAV format.
       const wavData = await encode({
         sampleRate: mergedBuffer.sampleRate,
-        channelData: Array.from({ length: mergedBuffer.numberOfChannels }, (_, i) =>
-          mergedBuffer.getChannelData(i)
+        channelData: Array.from(
+          { length: mergedBuffer.numberOfChannels },
+          (_, i) => mergedBuffer.getChannelData(i)
         ),
       });
       // Create a Blob from the WAV data and generate a URL.
@@ -159,7 +169,7 @@ export const useTTS = () => {
       }
       // Generate a requestId for tracking.
       const requestId = Date.now();
-      console.log(voice)
+      voice;
       worker.postMessage({ type: "generate", text, voice, requestId });
     },
     [worker, mergedAudioUrl]
