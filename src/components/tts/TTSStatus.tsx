@@ -23,8 +23,9 @@ const TTSStatus: React.FC<TTSStatusProps> = ({
     <div className="mt-4 space-y-2">
       {isGenerating && (
         <Progress
+          // Ensure percentage is computed only when total > 0.
           value={
-            chunkProgress.total > 0
+            chunkProgress.total
               ? (chunkProgress.completed / chunkProgress.total) * 100
               : 0
           }
@@ -41,7 +42,8 @@ const TTSStatus: React.FC<TTSStatusProps> = ({
 
       {generationStartTime && generationEndTime && (
         <p className="text-sm text-muted-foreground">
-          Generation time: {formatTime((generationEndTime - generationStartTime)/1000)}m
+          Generation time:{" "}
+          {formatTime((generationEndTime - generationStartTime) / 1000)}
         </p>
       )}
     </div>

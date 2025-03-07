@@ -42,10 +42,12 @@ export const useStoryTTS = () => {
   // --- Worker Message Handlers ---
 
   const handleChunkStart = (data: any) => {
+    console.log("handleChunkStart:", data);
     // (No longer updating progress or time here.)
   };
 
   const handleChunkComplete = async (data: any) => {
+    console.log("handleChunkComplete:", data);
     try {
       // Decode the incoming audio blob into an AudioBuffer.
       const arrayBuffer = await data.audio.arrayBuffer();
@@ -90,7 +92,10 @@ export const useStoryTTS = () => {
     }
   };
 
-  const handleComplete = async (data: any) => {};
+  const handleComplete = async (data: any) => {
+    console.log("handleComplete:", data);
+    // (Set generationEndTime after all dialogues are processed.)
+  };
 
   const handleWorkerError = (err: ErrorEvent) => {
     console.error("Worker encountered an error:", err);
@@ -99,6 +104,7 @@ export const useStoryTTS = () => {
 
   const handleMessage = async (event: MessageEvent) => {
     const data = event.data;
+    console.log("Global worker message:", data);
     switch (data.status) {
       case "chunk-start":
         handleChunkStart(data);
@@ -173,11 +179,13 @@ export const useStoryTTS = () => {
         }
         // Generate a unique request ID.
         const requestId = Date.now().toString() + Math.random().toString();
+        console.log("Posting generate message:", { requestId, text, voice });
         // Listen once for a matching response.
         const handleCompleteOnce = (event: MessageEvent) => {
           const data = event.data;
           if (data.requestId !== requestId) return;
           if (data.status === "complete") {
+            console.log("Received complete for request:", requestId);
             worker.removeEventListener("message", handleCompleteOnce);
             resolve();
           } else if (data.status === "error") {
@@ -205,21 +213,17 @@ export const useStoryTTS = () => {
       }
       setGenerationStartTime(Date.now());
       setGenerationEndTime(null);
-      // Set the total once and initialize completed count to 0.
       setChunkProgress({ total: dialogues.length, completed: 0 });
 
       for (let i = 0; i < dialogues.length; i++) {
         const dialogue = dialogues[i];
         const voiceId = voiceMapping[dialogue.character];
         if (!voiceId) continue;
+        console.log("Generating dialogue:", dialogue, "with voice:", voiceId);
         try {
           // For the first dialogue, do not append; for subsequent ones, append.
           await generateSpeech(dialogue.dialog, voiceId, i > 0);
-          // Increment completed count using a functional update.
-          setChunkProgress((prev) => ({
-            ...prev,
-            completed: prev.completed + 1,
-          }));
+          setChunkProgress({ total: dialogues.length, completed: i + 1 });
         } catch (err) {
           console.error("Error generating speech for dialogue:", dialogue, err);
           setError(`Error generating speech for ${dialogue.character}`);

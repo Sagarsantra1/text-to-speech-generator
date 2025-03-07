@@ -29,12 +29,15 @@ const DialogueInputSection: React.FC<{
   const [open, setOpen] = React.useState(dialogues === null);
 
   React.useEffect(() => {
-    setOpen(dialogues ? false : true);
+    setOpen(Boolean(!dialogues));
   }, [dialogues]);
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger className="flex w-full items-center justify-between cursor-pointer">
+      <CollapsibleTrigger
+        className="flex w-full items-center justify-between cursor-pointer"
+        aria-expanded={open}
+      >
         <span className="text-xl font-semibold">Enter Dialogues (JSON)</span>
         <ChevronDown className="h-5 w-5 transition-transform duration-200" />
       </CollapsibleTrigger>
@@ -63,7 +66,13 @@ const VoiceSelectionSection: React.FC<{
   handleVoiceChange: (character: string, voiceId: string) => void;
   isGenerating: boolean;
   voices: Voice[];
-}> = ({ uniqueCharacters, voiceMapping, handleVoiceChange, isGenerating, voices }) => {
+}> = ({
+  uniqueCharacters,
+  voiceMapping,
+  handleVoiceChange,
+  isGenerating,
+  voices,
+}) => {
   return (
     <section>
       <h2 className="text-xl font-semibold mb-2">Voice Selection</h2>
@@ -84,7 +93,9 @@ const VoiceSelectionSection: React.FC<{
 };
 
 /** Renders the list of processed dialogues. */
-const DialogueListSection: React.FC<{ dialogues: DialogueEntry[] }> = ({ dialogues }) => {
+const DialogueListSection: React.FC<{ dialogues: DialogueEntry[] }> = ({
+  dialogues,
+}) => {
   return (
     <section>
       <h2 className="text-xl font-semibold mb-2">Dialogues</h2>
@@ -154,7 +165,10 @@ const StoryTTSInputForm: React.FC<StoryTTSInputFormProps> = ({
 
           <DialogueListSection dialogues={dialogues} />
 
-          <GenerateAudioButton handleGenerate={handleGenerate} isGenerating={isGenerating} />
+          <GenerateAudioButton
+            handleGenerate={handleGenerate}
+            isGenerating={isGenerating}
+          />
         </>
       )}
     </div>

@@ -19,7 +19,7 @@ const Header: React.FC = () => {
       <div className="container flex items-center justify-between py-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className=" font-bold text-xl">
+            <Button variant="ghost" className="font-bold text-xl">
               {currentPageName} <ChevronDown className="ml-2 h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
